@@ -9,6 +9,8 @@ library(ggpubr)
 library(sf)
 theme_set(theme_pubclean())
 
+load("data/summary_statistics.rda")
+
 load("data/tau.rda")
 forest_level <- c(1.0, 0.0)
 
@@ -18,6 +20,7 @@ time_values <- c(1, 3, 5, 10)
 load("data/project_coverage.rda")
 
 ui <- dashboardPage(
+  skin = "green",
   dashboardHeader(title = "NA-POPS Dashboard"),
   
   dashboardSidebar(
@@ -38,7 +41,34 @@ ui <- dashboardPage(
     tabItems(
       # Project Overview
       tabItem(tabName = "overview",
-                h2("Project Overview"),
+              
+             # h3("Project Overview"),
+              
+              fluidRow(
+                valueBox(value = summary_stats$n_species,
+                         subtitle = "Species Modelled",
+                         icon = icon("crow"),
+                         width = 3,
+                         color = "olive"),
+                valueBox(value = summary_stats$total_projects,
+                         subtitle = "Projects",
+                         icon = icon("project-diagram"),
+                         width = 3,
+                         color = "olive"),
+                valueBox(value = summary_stats$n_samples,
+                         subtitle = "Sampling Events",
+                         icon = icon("clipboard"),
+                         width = 3,
+                         color = "olive"),
+                valueBox(value = paste0(format(round(summary_stats$n_observations / 1e6, 2), trim = TRUE), "M +"),
+                         subtitle = "Observations",
+                         icon = icon("binoculars"),
+                         width = 3,
+                         color = "olive")
+              ),
+              
+              #h3("Geographic Coverage"),
+              h5("Click on a region to view a regional summary"),
               fluidRow(
                 column(width = 7,
                        box(leafletOutput("project_coverage_map"),
@@ -51,6 +81,7 @@ ui <- dashboardPage(
               )
               ),
       
+      # Removal Modelling
       tabItem(tabName = "removal",
               fluidRow(
                 box(title = "Species-specific Coverage Map for Removal Modelling",
@@ -66,19 +97,11 @@ ui <- dashboardPage(
               ),
               fluidRow(
                 box(
-                    # selectInput(inputId = "rem_sp", 
-                    #             label = "Species",
-                    #             choices = unique(phi$Species),
-                    #             selected = unique(phi$Species)[1]),
                     sliderInput(inputId = "jd", 
                                 label = "Julian Day:", 
                                 min = 91, max = 200, value = 152)
                 ),
                 box(
-                    # selectInput(inputId = "rem_sp", 
-                    #             label = "Species",
-                    #             choices = unique(phi$Species),
-                    #             selected = unique(phi$Species)[1]),
                     sliderInput(inputId = "tssr", 
                                 label = "Time Since Local Sunrise:", 
                                 min = -2, max = 6, value = 1)
@@ -86,38 +109,6 @@ ui <- dashboardPage(
               )
       ),
       
-      # # TSSR Page
-      # tabItem(tabName = "tssr",
-      #         fluidRow(
-      #           box(title = "Species Overview",
-      #               # selectInput(inputId = "rem_sp", 
-      #               #             label = "Species",
-      #               #             choices = unique(phi$Species),
-      #               #             selected = unique(phi$Species)[1]),
-      #               sliderInput(inputId = "jd", 
-      #                           label = "Julian Day:", 
-      #                           min = 91, max = 200, value = 152)
-      #           ),
-      #           box(plotOutput("tssr_curve"))
-      #         )
-      #         ),
-      # 
-      # # JD Page
-      # tabItem(tabName = "jd",
-      #         fluidRow(
-      #           box(title = "Controls",
-      #               # selectInput(inputId = "rem_sp", 
-      #               #             label = "Species",
-      #               #             choices = unique(phi$Species),
-      #               #             selected = unique(phi$Species)[1]),
-      #               sliderInput(inputId = "tssr", 
-      #                           label = "Time Since Local Sunrise:", 
-      #                           min = -2, max = 6, value = 1)
-      #           ),
-      #           box(plotOutput("jd_curve"))
-      #         )
-      # ),
-      # 
       # Distance Modelling
       tabItem(tabName = "distance",
               fluidRow(
@@ -177,7 +168,7 @@ server <- function(input, output) {
     infoBox(
       title = "Region",
       value = strat2[strat2$ST_12 == click_region(), ]$ST_12,
-      color = "blue",
+      color = "green",
       fill = TRUE
     )
   })
@@ -186,7 +177,7 @@ server <- function(input, output) {
     infoBox(
       title = "Counts",
       value = strat2[strat2$ST_12 == click_region(), ]$ncounts,
-      color = "blue",
+      color = "green",
       fill = TRUE
     )
   })
