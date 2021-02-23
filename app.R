@@ -83,29 +83,39 @@ ui <- dashboardPage(
       
       # Removal Modelling
       tabItem(tabName = "removal",
+              # fluidRow(
+              #   box(title = "Species-specific Coverage Map for Removal Modelling",
+              #       "TO DO",
+              #       width = 7),
+              #   box(title = "Region specific summary statistics",
+              #       "TO DO",
+              #       width = 5)
+              # ),
               fluidRow(
-                box(title = "Species-specific Coverage Map for Removal Modelling",
-                    "TO DO",
-                    width = 7),
-                box(title = "Region specific summary statistics",
-                    "TO DO",
-                    width = 5)
-              ),
-              fluidRow(
-                box(plotOutput("tssr_curve"), width = 6),
-                box(plotOutput("jd_curve"), width = 6)
-              ),
-              fluidRow(
-                box(
-                    sliderInput(inputId = "jd", 
-                                label = "Julian Day:", 
-                                min = 91, max = 200, value = 152)
+                column(width = 7,
+                  tabBox(
+                    side = "left",
+                    tabPanel("TSSR",
+                             plotOutput("tssr_curve"),
+                             sliderInput(inputId = "jd", 
+                                         label = "Julian Day:", 
+                                         min = 91, max = 200, value = 152)),
+                    tabPanel("JD",
+                             plotOutput("jd_curve"),
+                             sliderInput(inputId = "tssr", 
+                                         label = "Time Since Local Sunrise:", 
+                                         min = -2, max = 6, value = 1)),
+                  width = NULL)
                 ),
-                box(
-                    sliderInput(inputId = "tssr", 
-                                label = "Time Since Local Sunrise:", 
-                                min = -2, max = 6, value = 1)
-                )
+                
+                column(width = 5,
+                       box(title = "Species-specific Coverage Map for Removal Modelling",
+                           "TO DO",
+                           width = NULL),
+                       box(title = "Region specific summary statistics",
+                           "TO DO",
+                           width = NULL)
+                       )
               )
       ),
       
@@ -169,6 +179,7 @@ server <- function(input, output) {
       title = "Region",
       value = strat2[strat2$ST_12 == click_region(), ]$ST_12,
       color = "green",
+      icon = icon("map"),
       fill = TRUE
     )
   })
