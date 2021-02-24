@@ -9,7 +9,7 @@ library(ggpubr)
 library(sf)
 theme_set(theme_pubclean())
 
-load("data/summary_statistics.rda")
+load("../results/quant-summary/summary_statistics.rda")
 
 load("data/tau.rda")
 forest_level <- c(1.0, 0.0)
@@ -17,7 +17,7 @@ forest_level <- c(1.0, 0.0)
 load("data/phi.rda")
 time_values <- c(1, 3, 5, 10)
 
-load("data/project_coverage.rda")
+load("../results/spatial-summary/project_coverage.rda")
 
 ui <- dashboardPage(
   skin = "green",
@@ -152,13 +152,13 @@ server <- function(input, output) {
     
     pal <- colorNumeric(viridis(10), NULL)
     
-    leaflet(strat2) %>%
+    leaflet(project_coverage) %>%
       addPolygons(stroke = FALSE,
                   fillColor = ~pal(sqrt_ncounts),
                   layerId = ~ST_12,
                   fillOpacity = 1.0) %>%
       addLegend(position = 'bottomright', pal = pal, 
-                values = strat2$sqrt_ncounts, title = 'SQRT(Counts)')
+                values = project_coverage$sqrt_ncounts, title = 'SQRT(Counts)')
     
   })
   
@@ -171,13 +171,13 @@ server <- function(input, output) {
   
   region_data <- reactive({
     # Fetch data for the clicked tract
-    return(strat2[strat2$ST_12 == click_region(), ])
+    return(project_coverage[project_coverage$ST_12 == click_region(), ])
   })
   
   output$proj_region_name <- renderInfoBox({
     infoBox(
       title = "Region",
-      value = strat2[strat2$ST_12 == click_region(), ]$ST_12,
+      value = project_coverage[project_coverage$ST_12 == click_region(), ]$ST_12,
       color = "green",
       icon = icon("map"),
       fill = TRUE
@@ -186,9 +186,10 @@ server <- function(input, output) {
   
   output$proj_region_ncounts <- renderInfoBox({
     infoBox(
-      title = "Counts",
-      value = strat2[strat2$ST_12 == click_region(), ]$ncounts,
+      title = "Sampling Events",
+      value = project_coverage[project_coverage$ST_12 == click_region(), ]$ncounts,
       color = "green",
+      icon = icon("clipboard"),
       fill = TRUE
     )
   })
