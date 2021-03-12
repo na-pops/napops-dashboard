@@ -11,13 +11,19 @@ theme_set(theme_pubclean())
 
 load("../results/quant-summary/summary_statistics.rda")
 
-load("data/tau.rda")
+load("../results/simulations/tau.rda")
+tau <- tau_df; rm(tau_df)
 forest_level <- c(1.0, 0.0)
 
-load("data/phi.rda")
+load("../results/simulations/phi.rda")
+phi <- phi_df; rm(phi_df)
 time_values <- c(1, 3, 5, 10)
 
-load("../results/spatial-summary/project_coverage.rda")
+load("../results/spatial-summary/project_coverage_bcr_state.rda")
+load("../results/spatial-summary/project_coverage_bcr.rda")
+load("../results/spatial-summary/project_coverage_state.rda")
+
+project_coverage <- bcr_coverage
 
 ui <- dashboardPage(
   skin = "green",
@@ -41,9 +47,6 @@ ui <- dashboardPage(
     tabItems(
       # Project Overview
       tabItem(tabName = "overview",
-              
-             # h3("Project Overview"),
-              
               fluidRow(
                 valueBox(value = summary_stats$n_species,
                          subtitle = "Species Modelled",
@@ -66,8 +69,6 @@ ui <- dashboardPage(
                          width = 3,
                          color = "olive")
               ),
-              
-              #h3("Geographic Coverage"),
               h5("Click on a region to view a regional summary"),
               fluidRow(
                 column(width = 7,
@@ -137,6 +138,18 @@ ui <- dashboardPage(
     )
   )
 )
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
