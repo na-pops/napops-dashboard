@@ -13,6 +13,7 @@ load("data/summary_statistics.rda")
 
 load("data/tau.rda")
 tau <- tau_df; rm(tau_df)
+tau$Roadside_Status <- ifelse(tau$Roadside == 1, "On-Road", "Off-road")
 forest_level <- c(1.0, 0.0)
 
 load("data/phi.rda")
@@ -36,6 +37,9 @@ ui <- dashboardPage(
      # menuSubItem("Time Since Local Sunrise", tabName = "tssr"),
       #menuSubItem("Julian Day", tabName = "jd"),
       menuItem("Distance", tabName = "distance"),
+      menuSubItem("Covariate Analysis", tabName = "dis-cov"),
+      menuSubItem("Perceptability Curves", tabName = "q"),
+      menuSubItem("EDR Curves", tabName = "edr"),
       selectInput(inputId = "sp", 
                   label = "Species",
                   choices = unique(tau$Species),
@@ -121,20 +125,17 @@ ui <- dashboardPage(
       ),
       
       # Distance Modelling
-      tabItem(tabName = "distance",
-              fluidRow(
-                box(title = "Species-specific Coverage Map for Distance Modelling",
-                    "TO DO",
-                    width = 7),
-                box(title = "Region specific summary statistics",
-                    "TO DO",
-                    width = 5)
-              ),
+      tabItem(tabName = "q",
                 fluidRow(
                   box(plotOutput("distance_curve"),
                       width = 12)
-                )
-              )
+              )),
+      
+      tabItem(tabName = "edr",
+              fluidRow(
+                box(plotOutput("edr_curve"),
+                    width = 12)
+              ))
     )
   )
 )
@@ -219,8 +220,8 @@ server <- function(input, output) {
       distance_plot_list[[i]] <- 
         ggplot(data = tau[which(tau$Forest == fc &
                                        tau$Species == input$sp),]) +
-        geom_line(aes(x = Radius, y = q, color = as.factor(Roadside))) +
-        geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = as.factor(Roadside)),
+        geom_line(aes(x = Radius, y = q, color = Roadside_Status)) +
+        geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = Roadside_Status),
                     alpha = 0.25) +
         #stat_summary(aes(x = Radius, y = q, group = as.factor(Roadside), color = as.factor(Roadside)), fun = mean, geom = "smooth", size = 1.25) +
         ylim(0, 1) +
@@ -235,8 +236,13 @@ server <- function(input, output) {
       nrow = 1,
       xAxisLabels = c("Forest", "Non-forest"),
       title = paste0("Species: ",
-                     input$sp))
+                     input$sp),
+      legend = 2)
   
+  })
+  
+  output$edr_curve <- renderPlot({
+    
   })
   
   output$tssr_curve <- renderPlot({
