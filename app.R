@@ -9,19 +9,19 @@ library(ggpubr)
 library(sf)
 theme_set(theme_pubclean())
 
-load("../results/quant-summary/summary_statistics.rda")
+load("data/summary_statistics.rda")
 
-load("../results/simulations/tau.rda")
+load("data/tau.rda")
 tau <- tau_df; rm(tau_df)
 forest_level <- c(1.0, 0.0)
 
-load("../results/simulations/phi.rda")
+load("data/phi.rda")
 phi <- phi_df; rm(phi_df)
 time_values <- c(1, 3, 5, 10)
 
-load("../results/spatial-summary/project_coverage_bcr_state.rda")
-load("../results/spatial-summary/project_coverage_bcr.rda")
-load("../results/spatial-summary/project_coverage_state.rda")
+load("data/project_coverage_bcr_state.rda")
+load("data/project_coverage_bcr.rda")
+load("data/project_coverage_state.rda")
 
 project_coverage <- bcr_coverage
 
