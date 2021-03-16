@@ -14,6 +14,8 @@ load("../results/spatial-summary/project_coverage_bcr_state.rda")
 load("../results/spatial-summary/project_coverage_bcr.rda")
 load("../results/spatial-summary/project_coverage_state.rda")
 
+load("../results/bic/dis_bic.rda")
+
 tau_files <- list.files(path = "../results/simulations/tau")
 for (f in tau_files)
 {
@@ -129,36 +131,69 @@ ui <- dashboardPage(
       
       # Distance Modelling
       tabItem(tabName = "q",
-              tabBox(
-                side = "left",
-                tabPanel("Null Model",
-                         plotOutput("q_curve_null")),
-                tabPanel("Road Model",
-                         plotOutput("q_curve_road")),
-                tabPanel("Forest Coverage Model",
-                         plotOutput("q_curve_forest")),
-                tabPanel("Road AND Forest Model (Additive)",
-                         plotOutput("q_curve_additive")),
-                tabPanel("Road AND Forest Model (Interaction)",
-                         plotOutput("q_curve_interaction")),
-                width = NULL)
+              fluidRow(
+                column(width = 8,
+                       tabBox(
+                         side = "left",
+                         tabPanel("(1) Null Model",
+                                  plotOutput("q_curve_null")),
+                         tabPanel("(2) Road Model",
+                                  plotOutput("q_curve_road")),
+                         tabPanel("(3) Forest Coverage Model",
+                                  plotOutput("q_curve_forest")),
+                         tabPanel("(4) Road AND Forest Model (Additive)",
+                                  plotOutput("q_curve_additive")),
+                         tabPanel("(5) Road AND Forest Model (Interaction)",
+                                  plotOutput("q_curve_interaction")),
+                         width = NULL)
+                       ),
+                column(width = 4,
+                       h2("How to Interpret"),
+                       "The plot on the left displays the conditional probability that 
+                       a bird is perceived, provided it gives a cue (\"q\", y-axis), 
+                       modelled by survey radius (x-axis). NA-POPS considers 5 candidate 
+                       models for deriving q and EDR that model different combinations of roadside 
+                       status (on- vs. off-road) and forest coverage (forest vs. non-forest). 
+                       The q curve for each of these models can be viewed with the tabs above 
+                       the plot.
+                       
+                       The table below ranks the models for this particular species based 
+                       on BIC from most parsimonious to least parsimonious.",
+                       tableOutput("q_bic"))
+                )
+
               ),
       
       tabItem(tabName = "edr",
-              tabBox(
-                side = "left",
-                tabPanel("Null Model",
-                         plotOutput("edr_null")),
-                tabPanel("Road Model",
-                         plotOutput("edr_road")),
-                tabPanel("Forest Coverage Model",
-                         plotOutput("edr_forest")),
-                tabPanel("Road AND Forest Model (Additive)",
-                         plotOutput("edr_additive")),
-                tabPanel("Road AND Forest Model (Interaction)",
-                         plotOutput("edr_interaction")),
-                width = NULL)
+              fluidRow(
+                column(width = 8,
+                       tabBox(
+                         side = "left",
+                         tabPanel("(1) Null Model",
+                                  plotOutput("edr_null")),
+                         tabPanel("(2) Road Model",
+                                  plotOutput("edr_road")),
+                         tabPanel("(3) Forest Coverage Model",
+                                  plotOutput("edr_forest")),
+                         tabPanel("(4) Road AND Forest Model (Additive)",
+                                  plotOutput("edr_additive")),
+                         tabPanel("(5) Road AND Forest Model (Interaction)",
+                                  plotOutput("edr_interaction")),
+                         width = NULL)
+                  ),
+                column(width = 4,
+                       h2("How to Interpret"),
+                       "The plot on the left displays the effective detection radius
+                       (\"EDR\", y-axis). NA-POPS considers 5 candidate 
+                       models for deriving q and EDR that model different combinations of roadside 
+                       status (on- vs. off-road) and forest coverage (forest vs. non-forest). 
+                       
+                       The table below ranks the models for this particular species based 
+                       on BIC from most parsimonious to least parsimonious.",
+                       tableOutput("edr_bic"))
+                )
               )
+              
     )
   )
 )
@@ -232,6 +267,12 @@ server <- function(input, output) {
   })
   
   ################ Distance Functions ############################  
+  
+  output$q_bic <- output$edr_bic <- renderTable(dis_bic[[input$sp]],
+                                                striped = TRUE,
+                                                bordered = TRUE,
+                                                hover = TRUE)
+  
   output$q_curve_null <- renderPlot({
 
     ggplot(data = tau_1[which(tau_1$Species == input$sp),]) +
