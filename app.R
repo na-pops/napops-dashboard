@@ -53,7 +53,8 @@ ui <- dashboardPage(
       selectInput(inputId = "sp", 
                   label = "Species",
                   choices = unique(tau_1$Species),
-                  selected = unique(tau_1$Species)[1])
+                  selected = unique(tau_1$Species)[1]),
+      "Models Run: 14 January 2021"
     )
   ),
   
@@ -97,6 +98,11 @@ ui <- dashboardPage(
               ),
       
       # Removal Modelling
+      tabItem(tabName = "removal",
+              h2("Infographic about removal modelling process to go here."),
+              h4("In the mean time, click some of the submenus under \"Removal\" to
+                 view some graphs!")
+              ),
       tabItem(tabName = "rem-sp",
               fluidRow(
                 valueBoxOutput("rem_species", width = 4),
@@ -149,6 +155,11 @@ ui <- dashboardPage(
       ),
       
       # Distance Modelling
+      tabItem(tabName = "distance",
+              h2("Infographic about distance sampling process to go here."),
+              h4("In the mean time, click some of the submenus under \"Distance\" to
+                 view some graphs!")
+      ),
       tabItem(tabName = "dis-sp",
               fluidRow(
                 valueBoxOutput("dis_species", width = 4),
