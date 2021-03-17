@@ -10,9 +10,14 @@ library(sf)
 theme_set(theme_pubclean())
 
 load("../results/quant-summary/summary_statistics.rda")
+load("../results/quant-summary/dis_species_summary.rda")
+load("../results/quant-summary/rem_species_summary.rda")
+
 load("../results/spatial-summary/project_coverage_bcr_state.rda")
 load("../results/spatial-summary/project_coverage_bcr.rda")
 load("../results/spatial-summary/project_coverage_state.rda")
+load("../results/spatial-summary/dis_coverage_bcr.rda")
+load("../results/spatial-summary/rem_coverage_bcr.rda")
 
 load("../results/bic/dis_bic.rda")
 
@@ -39,11 +44,11 @@ ui <- dashboardPage(
     sidebarMenu(
       menuItem("Project Overview", tabName = "overview"),
       menuItem("Removal", tabName = "removal"),
-     # menuSubItem("Time Since Local Sunrise", tabName = "tssr"),
-      #menuSubItem("Julian Day", tabName = "jd"),
+      menuSubItem("Species Overview", tabName = "rem-sp"),
+      menuSubItem("Availability (p) Curves", tabName = "p"),
       menuItem("Distance", tabName = "distance"),
-      menuSubItem("Covariate Analysis", tabName = "dis-cov"),
-      menuSubItem("Perceptability Curves", tabName = "q"),
+      menuSubItem("Species Overview", tabName = "dis-sp"),
+      menuSubItem("Perceptability (q) Curves", tabName = "q"),
       menuSubItem("Effective Detection Radius", tabName = "edr"),
       selectInput(inputId = "sp", 
                   label = "Species",
@@ -92,17 +97,32 @@ ui <- dashboardPage(
               ),
       
       # Removal Modelling
-      tabItem(tabName = "removal",
-              # fluidRow(
-              #   box(title = "Species-specific Coverage Map for Removal Modelling",
-              #       "TO DO",
-              #       width = 7),
-              #   box(title = "Region specific summary statistics",
-              #       "TO DO",
-              #       width = 5)
-              # ),
+      tabItem(tabName = "rem-sp",
+              fluidRow(
+                valueBoxOutput("rem_species", width = 4),
+                valueBoxOutput("rem_sampling", width = 4),
+                valueBoxOutput("rem_bcr", width = 4)
+              ),
               fluidRow(
                 column(width = 7,
+                       box(leafletOutput("rem_coverage_map"),
+                           width = NULL)
+                ),
+                column(width = 5,
+                       tabBox(
+                         side = "left",
+                         tabPanel("Julian Day",
+                                  plotOutput("rem_jd_hist")),
+                         tabPanel("Time Since Sunrise",
+                                  plotOutput("rem_tssr_hist")),
+                         width = NULL
+                       )
+                )
+              )
+      ),
+      tabItem(tabName = "p",
+              fluidRow(
+                column(width = 8,
                   tabBox(
                     side = "left",
                     tabPanel("TSSR",
@@ -117,19 +137,41 @@ ui <- dashboardPage(
                                          min = -2, max = 6, value = 1)),
                   width = NULL)
                 ),
-                
-                column(width = 5,
-                       box(title = "Species-specific Coverage Map for Removal Modelling",
-                           "TO DO",
-                           width = NULL),
-                       box(title = "Region specific summary statistics",
-                           "TO DO",
-                           width = NULL)
+                column(width = 4,
+                       h2("How to Interpret"),
+                       "The plots on the left display the probability that a bird
+                       gives a cue (availability, p), modelled by Julian Day (JD) and Time-since-local-sunrise (TSSR). 
+                       Use the sliders to see how the availability curve changes with different 
+                       values of JD and TSSR.",
+                       h2("BIC and Model Selection Coming Soon for Removal Models")
                        )
               )
       ),
       
       # Distance Modelling
+      tabItem(tabName = "dis-sp",
+              fluidRow(
+                valueBoxOutput("dis_species", width = 4),
+                valueBoxOutput("dis_sampling", width = 4),
+                valueBoxOutput("dis_bcr", width = 4)
+              ),
+              fluidRow(
+                column(width = 7,
+                       box(leafletOutput("dis_coverage_map"),
+                           width = NULL)
+                ),
+                column(width = 5,
+                       tabBox(
+                         side = "left",
+                         tabPanel("Forest Coverage",
+                                  plotOutput("dis_forest_hist")),
+                         tabPanel("Roadside Status",
+                                  plotOutput("dis_road_bar")),
+                         width = NULL
+                         )
+                      )
+              )
+              ),
       tabItem(tabName = "q",
               fluidRow(
                 column(width = 8,
@@ -266,7 +308,59 @@ server <- function(input, output) {
     )
   })
   
-  ################ Distance Functions ############################  
+  ################ Distance Species Overview Functions ##########
+  
+  output$dis_species <- renderValueBox({
+    valueBox(value = input$sp,
+             subtitle = "Species",
+             icon = icon("crow"),
+             color = "olive")
+  })
+  
+  output$dis_sampling <- renderValueBox({
+    valueBox(value = nrow(dis_species_summary[[input$sp]]),
+             subtitle = "Sampling Events",
+             icon = icon("clipboard"),
+             color = "olive")
+  })
+  output$dis_bcr <- renderValueBox({
+    valueBox(value = length(which(bcr_dis_coverage[[input$sp]]$ncounts > 0)),
+             subtitle = "BCRs",
+             icon = icon("map"),
+             color = "olive")    
+  })
+
+  output$dis_coverage_map <- renderLeaflet({
+    
+    pal <- colorNumeric(viridis(10), NULL)
+    
+    leaflet(bcr_dis_coverage[[input$sp]]) %>%
+      addPolygons(stroke = FALSE,
+                  fillColor = ~pal(ncounts),
+                  layerId = ~ST_12,
+                  fillOpacity = 1.0) %>%
+      addLegend(position = 'bottomright', pal = pal, 
+                values = bcr_dis_coverage[[input$sp]]$ncounts, title = 'Sampling Events')
+    
+  })
+  
+  output$dis_forest_hist <- renderPlot({
+    ggplot(data = dis_species_summary[[input$sp]]) +
+      geom_histogram(aes(x = ForestOnly_5x5)) +
+      xlab("Forest Coverage") +
+      ylab("Sampling Events") +
+      NULL
+  })
+  
+  output$dis_road_bar <- renderPlot({
+    ggplot(data = dis_species_summary[[input$sp]]) +
+      geom_bar(aes(x = ifelse(roadside == 1, "On-Road", "Off-Road"))) +
+      xlab("Roadside Status") +
+      ylab("Sampling Events") +
+      NULL
+  })
+  
+  ################ Distance Perceptability Functions ############
   
   output$q_bic <- output$edr_bic <- renderTable(dis_bic[[input$sp]],
                                                 striped = TRUE,
@@ -381,8 +475,10 @@ server <- function(input, output) {
   
   })
   
+  ################ Distance EDR Functions #######################
+  
   output$edr_null <- renderPlot({
-    to_plot <- tau_1[which(tau_1$Species == sp), c("tau", "tau_2.5", "tau_97.5")]
+    to_plot <- tau_1[which(tau_1$Species == input$sp), c("tau", "tau_2.5", "tau_97.5")]
     to_plot <- cbind(data.frame(EDR = 1), to_plot)
     
     ggplot(data = to_plot[1,]) +
@@ -521,7 +617,59 @@ server <- function(input, output) {
     
   })
   
-  ################ Removal Functions ############################  
+  ################ Removal Species Overview Functions ###########
+  
+  output$rem_species <- renderValueBox({
+    valueBox(value = input$sp,
+             subtitle = "Species",
+             icon = icon("crow"),
+             color = "olive")
+  })
+  
+  output$rem_sampling <- renderValueBox({
+    valueBox(value = nrow(rem_species_summary[[input$sp]]),
+             subtitle = "Sampling Events",
+             icon = icon("clipboard"),
+             color = "olive")
+  })
+  output$rem_bcr <- renderValueBox({
+    valueBox(value = length(which(bcr_rem_coverage[[input$sp]]$ncounts > 0)),
+             subtitle = "BCRs",
+             icon = icon("map"),
+             color = "olive")    
+  })
+  
+  output$rem_coverage_map <- renderLeaflet({
+    
+    pal <- colorNumeric(viridis(10), NULL)
+    
+    leaflet(bcr_rem_coverage[[input$sp]]) %>%
+      addPolygons(stroke = FALSE,
+                  fillColor = ~pal(ncounts),
+                  layerId = ~ST_12,
+                  fillOpacity = 1.0) %>%
+      addLegend(position = 'bottomright', pal = pal, 
+                values = bcr_rem_coverage[[input$sp]]$ncounts, title = 'Sampling Events')
+    
+  })
+  
+  output$rem_jd_hist <- renderPlot({
+    ggplot(data = rem_species_summary[[input$sp]]) +
+      geom_histogram(aes(x = (JD*365))) +
+      xlab("Julian Day") +
+      ylab("Sampling Events") +
+      NULL
+  })
+  
+  output$rem_tssr_hist <- renderPlot({
+    ggplot(data = rem_species_summary[[input$sp]]) +
+      geom_histogram(aes(x = (TSSR*24))) +
+      xlab("Time Since Local Sunrise") +
+      ylab("Sampling Events") +
+      NULL
+  })
+  
+  ################ Removal Availability Functions ############### 
   
   output$tssr_curve <- renderPlot({
     # Empty plot list
