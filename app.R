@@ -43,7 +43,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     sidebarMenu(
       menuItem("Project Overview", tabName = "overview"),
-      menuItem("Removal", tabName = "removal"),
+      menuItem("Removal *", tabName = "removal"),
       menuSubItem("Species Overview", tabName = "rem-sp"),
       menuSubItem("Availability (p) Curves", tabName = "p"),
       menuItem("Distance", tabName = "distance"),
@@ -54,7 +54,9 @@ ui <- dashboardPage(
                   label = "Species",
                   choices = unique(tau_1$Species),
                   selected = unique(tau_1$Species)[1]),
-      "Models Run: 14 January 2021"
+      h5("Models Run: 18 March 2021"),
+      h5("* Removal results are as of"),
+      h5("14 January 2021 run")
     )
   ),
   
