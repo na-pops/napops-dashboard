@@ -19,7 +19,7 @@ load("../results/spatial-summary/project_coverage_state.rda")
 load("../results/spatial-summary/dis_coverage_bcr.rda")
 load("../results/spatial-summary/rem_coverage_bcr.rda")
 
-load("../results/bic/dis_bic.rda")
+load("../results/aic/dis_aic.rda")
 
 tau_files <- list.files(path = "../results/simulations/tau")
 for (f in tau_files)
@@ -151,7 +151,7 @@ ui <- dashboardPage(
                        gives a cue (availability, p), modelled by Julian Day (JD) and Time-since-local-sunrise (TSSR). 
                        Use the sliders to see how the availability curve changes with different 
                        values of JD and TSSR.",
-                       h2("BIC and Model Selection Coming Soon for Removal Models")
+                       h2("AIC and Model Selection Coming Soon for Removal Models")
                        )
               )
       ),
@@ -213,8 +213,8 @@ ui <- dashboardPage(
                        the plot.
                        
                        The table below ranks the models for this particular species based 
-                       on BIC from most parsimonious to least parsimonious.",
-                       tableOutput("q_bic"))
+                       on AIC from most parsimonious to least parsimonious.",
+                       tableOutput("q_aic"))
                 )
 
               ),
@@ -244,8 +244,8 @@ ui <- dashboardPage(
                        status (on- vs. off-road) and forest coverage (forest vs. non-forest). 
                        
                        The table below ranks the models for this particular species based 
-                       on BIC from most parsimonious to least parsimonious.",
-                       tableOutput("edr_bic"))
+                       on AIC from most parsimonious to least parsimonious.",
+                       tableOutput("edr_aic"))
                 )
               )
               
@@ -375,7 +375,7 @@ server <- function(input, output) {
   
   ################ Distance Perceptability Functions ############
   
-  output$q_bic <- output$edr_bic <- renderTable(dis_bic[[input$sp]],
+  output$q_aic <- output$edr_aic <- renderTable(dis_aic[[input$sp]],
                                                 striped = TRUE,
                                                 bordered = TRUE,
                                                 hover = TRUE)
