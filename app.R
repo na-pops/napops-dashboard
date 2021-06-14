@@ -9,18 +9,20 @@ library(ggpubr)
 library(sf)
 theme_set(theme_pubclean())
 
+# Load quantitative summary files
 load("../results/quant-summary/summary_statistics.rda")
 load("../results/quant-summary/dis_species_summary.rda")
 load("../results/quant-summary/rem_species_summary.rda")
 
+# Load spatial summary files
 load("../results/spatial-summary/project_coverage_bcr_state.rda")
 load("../results/spatial-summary/project_coverage_bcr.rda")
 load("../results/spatial-summary/project_coverage_state.rda")
 load("../results/spatial-summary/dis_coverage_bcr.rda")
 load("../results/spatial-summary/rem_coverage_bcr.rda")
 
+# Load files related to distance sampling and set constants
 load("../results/aic/dis_aic.rda")
-
 tau_files <- list.files(path = "../results/simulations/tau")
 for (f in tau_files)
 {
@@ -28,11 +30,21 @@ for (f in tau_files)
 }
 dis_models <- c("(1) Null Model", "(2) Road Model", "(3) Forest Coverage Model",
                 "(4) Road AND Forest Model (Additive)", "(5) Road AND Forest Model (Interaction)")
-
 forest_level <- c(1.0, 0.0)
 
-load("data/phi.rda")
-phi <- phi_df; rm(phi_df)
+# Load files related to removal sampling and set constants
+load("../results/aic/rem_aic.rda")
+phi_files <- list.files(path = "../results/simulations/phi")
+for (f in phi_files)
+{
+  load(paste0("../results/simulations/phi/", f))
+}
+rem_models <- c("(1) Null Model", "(2) Time-since-sunrise (TSSR) Model",
+                "(3) Julian Day (JD) Model", "(4) TSSR + TSSR^2 Model",
+                "(5) JD + JD^2 Model", "(6) TSSR + JD Model",
+                "(7) TSSR + TSSR^2 + JD Model",
+                "(8) TSSR + JD + JD^2 Model",
+                "(9) TSSR + TSSR^2 + JD + JD^2 Model")
 time_values <- c(1, 3, 5, 10)
 
 project_coverage <- bcr_coverage
@@ -147,12 +159,19 @@ ui <- dashboardPage(
                   width = NULL)
                 ),
                 column(width = 4,
+                       selectInput(inputId = "p_mod", 
+                                   label = "Model",
+                                   choices = rem_models,
+                                   selected = rem_models[1]),
                        h2("How to Interpret"),
                        "The plots on the left display the probability that a bird
                        gives a cue (availability, p), modelled by Julian Day (JD) and Time-since-local-sunrise (TSSR). 
                        Use the sliders to see how the availability curve changes with different 
-                       values of JD and TSSR.",
-                       h2("AIC and Model Selection Coming Soon for Removal Models")
+                       values of JD and TSSR.
+                       
+                       The table below ranks the models for this particular species based 
+                       on AIC from most parsimonious to least parsimonious.",
+                       tableOutput("p_aic")
                        )
               )
       ),
@@ -658,12 +677,19 @@ server <- function(input, output) {
   
   ################ Removal Availability Functions ############### 
   
+  output$p_aic <- renderTable(rem_aic[[input$sp]],
+                              striped = TRUE,
+                              bordered = TRUE,
+                              hover = TRUE)
+  
   output$tssr_curve <- renderPlot({
     # Empty plot list
     tssr_plot_list <- vector(mode = "list", length = length(time_values))
     
     i <- 1
     
+    mod <- which(rem_models == input$p_mod)
+    phi <- eval(parse(text = paste0("phi_", mod)))
     for (tv in time_values)
     {
       tssr_plot_list[[i]] <- 
@@ -697,6 +723,8 @@ server <- function(input, output) {
     
     i <- 1
     
+    mod <- which(rem_models == input$p_mod)
+    phi <- eval(parse(text = paste0("phi_", mod)))
     for (tv in time_values)
     {
       jd_plot_list[[i]] <- 
