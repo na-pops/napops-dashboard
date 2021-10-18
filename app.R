@@ -15,9 +15,7 @@ load("../results/quant-summary/dis_species_summary.rda")
 load("../results/quant-summary/rem_species_summary.rda")
 
 # Load spatial summary files
-load("../results/spatial-summary/project_coverage_bcr_state.rda")
 load("../results/spatial-summary/project_coverage_bcr.rda")
-load("../results/spatial-summary/project_coverage_state.rda")
 load("../results/spatial-summary/dis_coverage_bcr.rda")
 load("../results/spatial-summary/rem_coverage_bcr.rda")
 
@@ -49,6 +47,9 @@ time_values <- c(1, 3, 5, 10)
 
 project_coverage <- bcr_coverage
 
+laea = st_crs("+proj=laea +lat_0=45 +lon_0=-95") 
+bcr_coverage <- st_transform(bcr_coverage, crs = laea)
+
 ui <- dashboardPage(
   skin = "green",
   dashboardHeader(title = "NA-POPS Dashboard"),
@@ -67,7 +68,7 @@ ui <- dashboardPage(
                   label = "Species",
                   choices = unique(tau_1$Species),
                   selected = unique(tau_1$Species)[1]),
-      h5("Models Run: 8 June 2021")
+      h5("Models Run: 13 October 2021")
     )
   ),
   
