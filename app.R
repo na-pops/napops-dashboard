@@ -37,6 +37,10 @@ for (f in phi_files)
 {
   load(paste0("../results/simulations/phi/", f))
 }
+
+# Read in date
+date <- readChar("../results/date.txt")
+
 rem_models <- c("(1) Null Model", "(2) Time-since-sunrise (TSSR) Model",
                 "(3) Julian Day (JD) Model", "(4) TSSR + TSSR^2 Model",
                 "(5) JD + JD^2 Model", "(6) TSSR + JD Model",
@@ -68,7 +72,7 @@ ui <- dashboardPage(
                   label = "Species",
                   choices = unique(tau_1$Species),
                   selected = unique(tau_1$Species)[1]),
-      h5("Models Run: 13 October 2021")
+      h5(paste0("Models Run: ", date))
     )
   ),
   
