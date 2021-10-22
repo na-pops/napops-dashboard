@@ -39,7 +39,7 @@ for (f in phi_files)
 }
 
 # Read in date
-date <- readChar("../results/date.txt")
+date <- readChar("../results/date.txt", nchars = 30)
 
 rem_models <- c("(1) Null Model", "(2) Time-since-sunrise (TSSR) Model",
                 "(3) Julian Day (JD) Model", "(4) TSSR + TSSR^2 Model",
