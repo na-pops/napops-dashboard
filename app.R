@@ -9,6 +9,8 @@ library(ggpubr)
 library(sf)
 theme_set(theme_pubclean())
 
+laea = st_crs("+proj=laea +lat_0=45 +lon_0=-95")
+
 # Load quantitative summary files
 load("../results/quant-summary/summary_statistics.rda")
 load("../results/quant-summary/dis_species_summary.rda")
@@ -50,9 +52,6 @@ rem_models <- c("(1) Null Model", "(2) Time-since-sunrise (TSSR) Model",
 time_values <- c(1, 3, 5, 10)
 
 project_coverage <- bcr_coverage
-
-laea = st_crs("+proj=laea +lat_0=45 +lon_0=-95") 
-bcr_coverage <- st_transform(bcr_coverage, crs = laea)
 
 ui <- dashboardPage(
   skin = "green",
@@ -283,9 +282,14 @@ server <- function(input, output) {
   
   ################ Project Overview Functions ############################
   
+  project_coverage[which(project_coverage$ncounts == 0), "ncounts"] <- NA
+  #project_coverage <- st_transform(project_coverage, crs = laea)
+  
   output$project_coverage_map <- renderLeaflet({
     
-    pal <- colorNumeric(viridis(10), NULL)
+    pal <- colorNumeric(palette = rev(viridis(10)),
+                        domain = NULL, 
+                        na.color = "#808080")
     
     leaflet(project_coverage) %>%
       addPolygons(stroke = FALSE,
@@ -353,7 +357,10 @@ server <- function(input, output) {
 
   output$dis_coverage_map <- renderLeaflet({
     
-    pal <- colorNumeric(viridis(10), NULL)
+    pal <- colorNumeric(palette = rev(viridis(10)),
+                        domain = NULL, 
+                        na.color = "#808080")
+    bcr_dis_coverage[[input$sp]][which(bcr_dis_coverage[[input$sp]]$ncounts == 0), "ncounts"] <- NA
     
     leaflet(bcr_dis_coverage[[input$sp]]) %>%
       addPolygons(stroke = FALSE,
@@ -367,7 +374,7 @@ server <- function(input, output) {
   
   output$dis_forest_hist <- renderPlot({
     ggplot(data = dis_species_summary[[input$sp]]) +
-      geom_histogram(aes(x = ForestOnly_5x5)) +
+      geom_histogram(bins = 25, aes(x = ForestOnly_5x5)) +
       xlab("Forest Coverage") +
       ylab("Sampling Events") +
       NULL
@@ -650,7 +657,11 @@ server <- function(input, output) {
   
   output$rem_coverage_map <- renderLeaflet({
     
-    pal <- colorNumeric(viridis(10), NULL)
+    pal <- colorNumeric(palette = rev(viridis(10)),
+                        domain = NULL, 
+                        na.color = "#808080")
+    bcr_rem_coverage[[input$sp]][which(bcr_rem_coverage[[input$sp]]$ncounts == 0), "ncounts"] <- NA
+    
     
     leaflet(bcr_rem_coverage[[input$sp]]) %>%
       addPolygons(stroke = FALSE,
