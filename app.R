@@ -1,4 +1,12 @@
-## app.R ##
+####### Script Information ########################
+# Brandon P.M. Edwards
+# NA-POPS: napops-dashboard
+# app.R
+# Created August 2020
+# Last Updated December 2021
+
+####### Import Libraries and External Files #######
+
 library(shiny)
 library(shinydashboard)
 library(leaflet)
@@ -43,15 +51,18 @@ for (f in phi_files)
 # Read in date
 date <- readChar("../results/date.txt", nchars = 30)
 
-rem_models <- c("(1) Null Model", "(2) Time-since-sunrise (TSSR) Model",
-                "(3) Julian Day (JD) Model", "(4) TSSR + TSSR^2 Model",
-                "(5) JD + JD^2 Model", "(6) TSSR + JD Model",
-                "(7) TSSR + TSSR^2 + JD Model",
-                "(8) TSSR + JD + JD^2 Model",
-                "(9) TSSR + TSSR^2 + JD + JD^2 Model")
+rem_models <- c("(1) Null Model", "(2) Ordinal Day (OD) Model",
+                "(3) OD + OD^2 Model", "(4) Time-since-sunrise (TSSR) Model",
+                 "(5) TSSR + TSSR^2 Model",
+                 "(6) TSSR + OD Model",
+                "(7) TSSR + OD + OD^2 Model",
+                "(8) TSSR + TSSR^2 + OD Model",
+                "(9) TSSR + TSSR^2 + OD + OD^2 Model")
 time_values <- c(1, 3, 5, 10)
 
 project_coverage <- bcr_coverage
+
+####### UI Setup ##################################
 
 ui <- dashboardPage(
   skin = "green",
@@ -134,8 +145,8 @@ ui <- dashboardPage(
                 column(width = 5,
                        tabBox(
                          side = "left",
-                         tabPanel("Julian Day",
-                                  plotOutput("rem_jd_hist")),
+                         tabPanel("Ordinal Day",
+                                  plotOutput("rem_od_hist")),
                          tabPanel("Time Since Sunrise",
                                   plotOutput("rem_tssr_hist")),
                          width = NULL
@@ -150,11 +161,11 @@ ui <- dashboardPage(
                     side = "left",
                     tabPanel("TSSR",
                              plotOutput("tssr_curve"),
-                             sliderInput(inputId = "jd", 
-                                         label = "Julian Day:", 
+                             sliderInput(inputId = "od", 
+                                         label = "Ordinal Day:", 
                                          min = 91, max = 200, value = 152)),
-                    tabPanel("JD",
-                             plotOutput("jd_curve"),
+                    tabPanel("OD",
+                             plotOutput("od_curve"),
                              sliderInput(inputId = "tssr", 
                                          label = "Time Since Local Sunrise:", 
                                          min = -2, max = 6, value = 1)),
@@ -167,9 +178,9 @@ ui <- dashboardPage(
                                    selected = rem_models[1]),
                        h2("How to Interpret"),
                        "The plots on the left display the probability that a bird
-                       gives a cue (availability, p), modelled by Julian Day (JD) and Time-since-local-sunrise (TSSR). 
+                       gives a cue (availability, p), modelled by Ordinal Day (OD) and Time-since-local-sunrise (TSSR). 
                        Use the sliders to see how the availability curve changes with different 
-                       values of JD and TSSR.
+                       values of OD and TSSR.
                        
                        The table below ranks the models for this particular species based 
                        on AIC from most parsimonious to least parsimonious.",
@@ -260,23 +271,7 @@ ui <- dashboardPage(
   )
 )
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+####### Server Function ###########################
 
 server <- function(input, output) { 
   
@@ -673,17 +668,17 @@ server <- function(input, output) {
     
   })
   
-  output$rem_jd_hist <- renderPlot({
+  output$rem_od_hist <- renderPlot({
     ggplot(data = rem_species_summary[[input$sp]]) +
-      geom_histogram(aes(x = (JD*365))) +
-      xlab("Julian Day") +
+      geom_histogram(aes(x = (OD))) +
+      xlab("Ordinal Day") +
       ylab("Sampling Events") +
       NULL
   })
   
   output$rem_tssr_hist <- renderPlot({
     ggplot(data = rem_species_summary[[input$sp]]) +
-      geom_histogram(aes(x = (TSSR*24))) +
+      geom_histogram(aes(x = (TSSR))) +
       xlab("Time Since Local Sunrise") +
       ylab("Sampling Events") +
       NULL
@@ -707,7 +702,7 @@ server <- function(input, output) {
     for (tv in time_values)
     {
       tssr_plot_list[[i]] <- 
-        ggplot(data = phi[which(phi$JD == input$jd & 
+        ggplot(data = phi[which(phi$OD == input$od & 
                                        phi$Time == tv &
                                        phi$Species == input$sp),]) +
         geom_line(aes(x = TSSR, y = p)) +
@@ -730,10 +725,10 @@ server <- function(input, output) {
   })
   
   
-  output$jd_curve <- renderPlot({
+  output$od_curve <- renderPlot({
     
     # Empty plot list
-    jd_plot_list <- vector(mode = "list", length = length(time_values))
+    od_plot_list <- vector(mode = "list", length = length(time_values))
     
     i <- 1
     
@@ -741,21 +736,21 @@ server <- function(input, output) {
     phi <- eval(parse(text = paste0("phi_", mod)))
     for (tv in time_values)
     {
-      jd_plot_list[[i]] <- 
+      od_plot_list[[i]] <- 
         ggplot(data = phi[which(phi$TSSR == input$tssr & 
                                        phi$Time == tv &
                                        phi$Species == input$sp),]) +
-        geom_line(aes(x = JD, y = p)) +
-        geom_ribbon(aes(x = JD, ymin = p_2.5, ymax = p_97.5),
+        geom_line(aes(x = OD, y = p)) +
+        geom_ribbon(aes(x = OD, ymin = p_2.5, ymax = p_97.5),
                     alpha = 0.25) +
-        #stat_summary(aes(x = JD, y = p), fun = mean, geom = "smooth", size = 1.25) +
+        #stat_summary(aes(x = OD, y = p), fun = mean, geom = "smooth", size = 1.25) +
         ylim(0, 1) +
         theme(legend.position = "none")
       i <- i + 1
     }
     
     ggmatrix(
-      jd_plot_list,
+      od_plot_list,
       ncol = length(time_values),
       nrow = 1,
       xAxisLabels = c("1 min", "3 min", "5 min", "10 min"),
@@ -765,5 +760,7 @@ server <- function(input, output) {
   })
   
 }
+
+####### Run the App! ##############################
 
 shinyApp(ui, server)
