@@ -3,7 +3,7 @@
 # NA-POPS: napops-dashboard
 # app.R
 # Created August 2020
-# Last Updated December 2021
+# Last Updated January 2022
 
 ####### Import Libraries and External Files #######
 
@@ -15,6 +15,7 @@ library(ggplot2)
 library(GGally)
 library(ggpubr)
 library(sf)
+library(napops)
 theme_set(theme_pubclean())
 
 laea = st_crs("+proj=laea +lat_0=45 +lon_0=-95")
@@ -29,15 +30,6 @@ load("../results/spatial-summary/project_coverage_bcr.rda")
 load("../results/spatial-summary/dis_coverage_bcr.rda")
 load("../results/spatial-summary/rem_coverage_bcr.rda")
 
-# Load files related to distance sampling and set constants
-load("../results/aic/dis_aic.rda")
-tau_files <- list.files(path = "../results/simulations/tau")
-for (f in tau_files)
-{
-  load(paste0("../results/simulations/tau/", f))
-}
-dis_models <- c("(1) Null Model", "(2) Road Model", "(3) Forest Coverage Model",
-                "(4) Road AND Forest Model (Additive)", "(5) Road AND Forest Model (Interaction)")
 forest_level <- c(1.0, 0.0)
 
 # Load files related to removal sampling and set constants
@@ -338,13 +330,16 @@ server <- function(input, output) {
   })
   
   output$dis_sampling <- renderValueBox({
-    valueBox(value = nrow(dis_species_summary[[input$sp]]),
+    valueBox(value = nrow(covariates_distance(project = FALSE,
+                                              species = input$sp)),
              subtitle = "Sampling Events",
              icon = icon("clipboard"),
              color = "olive")
   })
+
   output$dis_bcr <- renderValueBox({
-    valueBox(value = length(which(bcr_dis_coverage[[input$sp]]$ncounts > 0)),
+    valueBox(value = length(which(spatial_coverage(model = "dis",
+                                                   species = input$sp)$ncounts > 0)),
              subtitle = "BCRs",
              icon = icon("map"),
              color = "olive")    
@@ -355,35 +350,39 @@ server <- function(input, output) {
     pal <- colorNumeric(palette = rev(viridis(10)),
                         domain = NULL, 
                         na.color = "#808080")
-    bcr_dis_coverage[[input$sp]][which(bcr_dis_coverage[[input$sp]]$ncounts == 0), "ncounts"] <- NA
+    to_plot <- spatial_coverage(model = "dis",
+                                species = input$sp)
+    to_plot[which(to_plot$ncounts == 0), "ncounts"] <-NA
     
-    leaflet(bcr_dis_coverage[[input$sp]]) %>%
+    leaflet(to_plot) %>%
       addPolygons(stroke = FALSE,
                   fillColor = ~pal(ncounts),
-                  layerId = ~ST_12,
+                  layerId = ~BCR,
                   fillOpacity = 1.0) %>%
       addLegend(position = 'bottomright', pal = pal, 
-                values = bcr_dis_coverage[[input$sp]]$ncounts, title = 'Sampling Events')
+                values = to_plot$ncounts, title = 'Sampling Events')
     
   })
   
   output$dis_forest_hist <- renderPlot({
-    ggplot(data = dis_species_summary[[input$sp]]) +
-      geom_histogram(bins = 25, aes(x = ForestOnly_5x5)) +
+    ggplot(data = covariates_distance(project = FALSE,
+                                      species = input$sp)) +
+      geom_histogram(bins = 25, aes(x = Forest)) +
       xlab("Forest Coverage") +
       ylab("Sampling Events") +
       NULL
   })
   
   output$dis_road_bar <- renderPlot({
-    ggplot(data = dis_species_summary[[input$sp]]) +
-      geom_bar(aes(x = ifelse(roadside == 1, "On-Road", "Off-Road"))) +
+    ggplot(data = covariates_distance(project = FALSE,
+                                      species = input$sp)) +
+      geom_bar(aes(x = ifelse(Road == 1, "On-Road", "Off-Road"))) +
       xlab("Roadside Status") +
       ylab("Sampling Events") +
       NULL
   })
   
-  ################ Distance Perceptability Functions ############
+  ################ Distance Perceptibility Functions ############
   
   output$q_aic <- output$edr_aic <- renderTable(dis_aic[[input$sp]],
                                                 striped = TRUE,
@@ -393,52 +392,125 @@ server <- function(input, output) {
   output$q_curve_plotter <- renderPlot({
     if (input$q_mod == dis_models[1])
     {
-      ggplot(data = tau_1[which(tau_1$Species == input$sp),]) +
-        geom_line(aes(x = Radius, y = q)) +
+      dis_values <- seq(25,400, by = 25)
+      
+      i <- 1
+      sim_data <- vector(mode = "list", length = length(dis_values))
+      for (dis in dis_values)
+      {
+        sim_data[[i]] <- percept(species = input$sp,
+                                 model = 1,
+                                 road = c(TRUE, FALSE),
+                                 forest = c(0,1),
+                                 distance = dis,
+                                 quantiles = c(0.025, 0.975))
+        sim_data[[i]]$Radius <- dis
+        
+        i <- i + 1
+      }
+      sim_data <- do.call(rbind, sim_data)
+      
+      ggplot(data = sim_data) +
+        geom_line(aes(x = Radius, y = q_est)) +
         geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5),
                     alpha = 0.25) +
         ylim(0, 1) +
         theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        ylab("Perceptibility (q)") +
         NULL
     }else if (input$q_mod == dis_models[2])
     {
-      tau_2$Roadside_Status <- ifelse(tau_2$Roadside == 1, "On-Road", "Off-road")
+      dis_values <- seq(25,400, by = 25)
       
-      ggplot(data = tau_2[which(tau_2$Species == input$sp),]) +
-        geom_line(aes(x = Radius, y = q, color = Roadside_Status)) +
+      i <- 1
+      sim_data <- vector(mode = "list", length = length(dis_values))
+      for (dis in dis_values)
+      {
+        sim_data[[i]] <- percept(species = input$sp,
+                                 model = 2,
+                                 road = c(TRUE, FALSE),
+                                 forest = c(0,1),
+                                 distance = dis,
+                                 quantiles = c(0.025, 0.975))
+        sim_data[[i]]$Radius <- dis
+        
+        i <- i + 1
+      }
+      sim_data <- do.call(rbind, sim_data)
+      
+      sim_data$Roadside_Status <- ifelse(sim_data$Road == 1, "On-Road", "Off-road")
+      
+      ggplot(data = sim_data[sim_data$Forest == 1, ]) +
+        geom_line(aes(x = Radius, y = q_est, color = Roadside_Status)) +
         geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = Roadside_Status),
                     alpha = 0.25) +
         ylim(0, 1) +
         #theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        ylab("Perceptibility (q)") +
         NULL
     }else if (input$q_mod == dis_models[3])
     {
-      tau_3$Forest_Coverage <- ifelse(tau_3$Forest == 1.0, "Forest", "Non-forest")
+      dis_values <- seq(25,400, by = 25)
       
-      ggplot(data = tau_3[which(tau_3$Species == input$sp &
-                                  tau_3$Forest %in% c(1.0, 0.0)),]) +
-        geom_line(aes(x = Radius, y = q, color = Forest_Coverage)) +
+      i <- 1
+      sim_data <- vector(mode = "list", length = length(dis_values))
+      for (dis in dis_values)
+      {
+        sim_data[[i]] <- percept(species = input$sp,
+                                 model = 3,
+                                 road = c(TRUE, FALSE),
+                                 forest = c(0,1),
+                                 distance = dis,
+                                 quantiles = c(0.025, 0.975))
+        sim_data[[i]]$Radius <- dis
+        
+        i <- i + 1
+      }
+      sim_data <- do.call(rbind, sim_data)
+      
+      sim_data$Forest_Coverage <- ifelse(sim_data$Forest == 1.0, "Forest", "Non-forest")
+      
+      ggplot(data = sim_data) +
+        geom_line(aes(x = Radius, y = q_est, color = Forest_Coverage)) +
         geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = Forest_Coverage),
                     alpha = 0.25) +
         ylim(0, 1) +
         #theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        ylab("Perceptibility (q)") +
         NULL
     }else if (input$q_mod == dis_models[4])
     {
-      # Empty plot list
-      tau_4$Roadside_Status <- ifelse(tau_4$Roadside == 1, "On-Road", "Off-road")
+      dis_values <- seq(25,400, by = 25)
+      
+      i <- 1
+      sim_data <- vector(mode = "list", length = length(dis_values))
+      for (dis in dis_values)
+      {
+        sim_data[[i]] <- percept(species = input$sp,
+                                 model = 4,
+                                 road = c(TRUE, FALSE),
+                                 forest = c(0,1),
+                                 distance = dis,
+                                 quantiles = c(0.025, 0.975))
+        sim_data[[i]]$Radius <- dis
+        
+        i <- i + 1
+      }
+      sim_data <- do.call(rbind, sim_data)
+      
+      sim_data$Roadside_Status <- ifelse(sim_data$Road == 1, "On-Road", "Off-road")
+      
       distance_plot_list <- vector(mode = "list", length = length(forest_level))
       i <- 1
       
       for (fc in c(1.0, 0.0))
       {
         distance_plot_list[[i]] <- 
-          ggplot(data = tau_4[which(tau_4$Forest == fc &
-                                      tau_4$Species == input$sp),]) +
-          geom_line(aes(x = Radius, y = q, color = Roadside_Status)) +
+          ggplot(data = sim_data[which(sim_data$Forest == fc),]) +
+          geom_line(aes(x = Radius, y = q_est, color = Roadside_Status)) +
           geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = Roadside_Status),
                       alpha = 0.25) +
           #stat_summary(aes(x = Radius, y = q, group = as.factor(Roadside), color = as.factor(Roadside)), fun = mean, geom = "smooth", size = 1.25) +
@@ -458,17 +530,34 @@ server <- function(input, output) {
         legend = 2)
     }else if (input$q_mod == dis_models[5])
     {
-      # Empty plot list
-      tau_5$Roadside_Status <- ifelse(tau_5$Roadside == 1, "On-Road", "Off-road")
+      dis_values <- seq(25,400, by = 25)
+      
+      i <- 1
+      sim_data <- vector(mode = "list", length = length(dis_values))
+      for (dis in dis_values)
+      {
+        sim_data[[i]] <- percept(species = input$sp,
+                                 model = 5,
+                                 road = c(TRUE, FALSE),
+                                 forest = c(0,1),
+                                 distance = dis,
+                                 quantiles = c(0.025, 0.975))
+        sim_data[[i]]$Radius <- dis
+        
+        i <- i + 1
+      }
+      sim_data <- do.call(rbind, sim_data)
+      
+      sim_data$Roadside_Status <- ifelse(sim_data$Road == 1, "On-Road", "Off-road")
+      
       distance_plot_list <- vector(mode = "list", length = length(forest_level))
       i <- 1
       
       for (fc in c(1.0, 0.0))
       {
         distance_plot_list[[i]] <- 
-          ggplot(data = tau_5[which(tau_5$Forest == fc &
-                                      tau_5$Species == input$sp),]) +
-          geom_line(aes(x = Radius, y = q, color = Roadside_Status)) +
+          ggplot(data = sim_data[which(sim_data$Forest == fc),]) +
+          geom_line(aes(x = Radius, y = q_est, color = Roadside_Status)) +
           geom_ribbon(aes(x = Radius, ymin = q_2.5, ymax = q_97.5, color = Roadside_Status),
                       alpha = 0.25) +
           #stat_summary(aes(x = Radius, y = q, group = as.factor(Roadside), color = as.factor(Roadside)), fun = mean, geom = "smooth", size = 1.25) +
@@ -494,69 +583,82 @@ server <- function(input, output) {
   output$edr_plotter <- renderPlot({
     if (input$edr_mod == dis_models[1])
     {
-      to_plot <- tau_1[which(tau_1$Species == input$sp), c("tau", "tau_2.5", "tau_97.5")]
-      to_plot <- cbind(data.frame(EDR = 1), to_plot)
+      to_plot <- edr(species = input$sp,
+                     model = 1,
+                     road = c(TRUE, FALSE),
+                     forest = c(0,1),
+                     quantiles = c(0.025, 0.975))
+      to_plot <- cbind(data.frame(X = 1), to_plot)
       
       ggplot(data = to_plot[1,]) +
-        geom_errorbar(aes(x = EDR,
-                          ymin = tau_2.5,
-                          ymax = tau_97.5,
+        geom_errorbar(aes(x = X,
+                          ymin = EDR_2.5,
+                          ymax = EDR_97.5,
                           width = 0.1)) +
-        geom_point(aes(x = EDR, y = tau, size = 2)) +
-        geom_text(aes(x = EDR, y = tau, label = tau)) +
-        #ylim(min(tau_2$tau_2.5) - 10, max(tau_2$tau_97.5) + 10) +
+        geom_point(aes(x = X, y = EDR_est, size = 2)) +
+        geom_text(aes(x = X, y = EDR_est, label = EDR_est)) +
         theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        xlab(" ") +
+        ylab("EDR (m)") +
         NULL 
     }else if (input$edr_mod == dis_models[2])
     {
-      tau_2$Roadside_Status <- ifelse(tau_2$Roadside == 1, "On-Road", "Off-road")
-      to_plot <- tau_2[which(tau_2$Species == input$sp),
-                       c("tau", "tau_2.5", "tau_97.5", "Roadside_Status")]
+      to_plot <- edr(species = input$sp,
+                     model = 2,
+                     road = c(TRUE, FALSE),
+                     forest = 1,
+                     quantiles = c(0.025, 0.975))
+      to_plot <- cbind(data.frame(X = 1), to_plot)
+      to_plot$Roadside_Status <- ifelse(to_plot$Road == 1, "On-Road", "Off-road")
       to_plot <- to_plot[!duplicated(to_plot$Roadside_Status), ]
       
       ggplot(data = to_plot) +
         geom_errorbar(aes(x = Roadside_Status,
-                          ymin = tau_2.5,
-                          ymax = tau_97.5,
+                          ymin = EDR_2.5,
+                          ymax = EDR_97.5,
                           width = 0.2)) +
-        geom_point(aes(x = Roadside_Status, y = tau, size = 2)) +
-        geom_text(aes(x = Roadside_Status, y = tau, label = tau)) +
-        #ylim(min(tau_2$tau_2.5) - 10, max(tau_2$tau_97.5) + 10) +
+        geom_point(aes(x = Roadside_Status, y = EDR_est, size = 2)) +
+        geom_text(aes(x = Roadside_Status, y = EDR_est, label = EDR_est)) +
         theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        ylab("EDR (m)") +
         NULL 
     }else if (input$edr_mod == dis_models[3])
     {
-      tau_3 <- tau_3[which(tau_3$Forest %in% c(0.0, 1.0)), ]
-      tau_3$Forest_Coverage <- ifelse(tau_3$Forest == 1.0, "Forest", "Non-forest")
-      to_plot <- tau_3[which(tau_3$Species == input$sp),
-                       c("tau", "tau_2.5", "tau_97.5", "Forest_Coverage")]
+      to_plot <- edr(species = input$sp,
+                     model = 3,
+                     road = TRUE,
+                     forest = c(0,1),
+                     quantiles = c(0.025, 0.975))
+      to_plot <- cbind(data.frame(X = 1), to_plot)
+      
+      to_plot$Forest_Coverage <- ifelse(to_plot$Forest == 1.0, "Forest", "Non-forest")
       to_plot <- to_plot[!duplicated(to_plot$Forest_Coverage), ]
       
       ggplot(data = to_plot) +
         geom_errorbar(aes(x = Forest_Coverage,
-                          ymin = tau_2.5,
-                          ymax = tau_97.5,
+                          ymin = EDR_2.5,
+                          ymax = EDR_97.5,
                           width = 0.2)) +
-        geom_point(aes(x = Forest_Coverage, y = tau, size = 2)) +
-        geom_text(aes(x = Forest_Coverage, y = tau, label = tau)) +
-        #ylim(min(tau_2$tau_2.5) - 10, max(tau_2$tau_97.5) + 10) +
+        geom_point(aes(x = Forest_Coverage, y = EDR_est, size = 2)) +
+        geom_text(aes(x = Forest_Coverage, y = EDR_est, label = EDR_est)) +
         theme(legend.position = "none") +
         ggtitle(paste0("Species: ", input$sp)) +
+        ylab("EDR (m)") +        
         NULL 
     }else if (input$edr_mod == dis_models[4])
     {
-      # Empty plot list
-      to_plot <- tau_4[which(tau_4$Forest %in% c(0.0, 1.0) &
-                               tau_4$Radius == 50), ]
-      to_plot$Roadside_Status <- ifelse(to_plot$Roadside == 1, "On-Road", "Off-road")
-      to_plot <- to_plot[which(to_plot$Species == input$sp),
-                         c("tau", "tau_2.5", "tau_97.5", "Roadside_Status", "Forest")]
-      #to_plot <- to_plot[!duplicated(to_plot$Forest), ]
+      to_plot <- edr(species = input$sp,
+                     model = 4,
+                     road = c(TRUE, FALSE),
+                     forest = c(0,1),
+                     quantiles = c(0.025, 0.975))
+      to_plot <- cbind(data.frame(X = 1), to_plot)
+      to_plot$Roadside_Status <- ifelse(to_plot$Road == 1, "On-Road", "Off-road")
       
-      min_y <- min(to_plot$tau_2.5) - 10
-      max_y <- max(to_plot$tau_97.5) + 10
+      min_y <- min(to_plot$EDR_2.5) - 10
+      max_y <- max(to_plot$EDR_97.5) + 10
       
       distance_plot_list <- vector(mode = "list", length = length(forest_level))
       i <- 1
@@ -566,11 +668,11 @@ server <- function(input, output) {
         distance_plot_list[[i]] <- 
           ggplot(data = to_plot[which(to_plot$Forest == fc),]) +
           geom_errorbar(aes(x = Roadside_Status,
-                            ymin = tau_2.5,
-                            ymax = tau_97.5,
+                            ymin = EDR_2.5,
+                            ymax = EDR_97.5,
                             width = 0.2)) +
-          geom_point(aes(x = Roadside_Status, y = tau, size = 2)) +
-          geom_text(aes(x = Roadside_Status, y = tau, label = tau)) +
+          geom_point(aes(x = Roadside_Status, y = EDR_est, size = 2)) +
+          geom_text(aes(x = Roadside_Status, y = EDR_est, label = EDR_est)) +
           ylim(min_y, max_y) +
           theme(legend.position = "none") +
           #ggtitle(paste0("Species: ", input$sp)) +
@@ -587,16 +689,16 @@ server <- function(input, output) {
                        input$sp))
     }else if (input$edr_mod == dis_models[5])
     {
-      # Empty plot list
-      to_plot <- tau_5[which(tau_5$Forest %in% c(0.0, 1.0) &
-                               tau_5$Radius == 50), ]
-      to_plot$Roadside_Status <- ifelse(to_plot$Roadside == 1, "On-Road", "Off-road")
-      to_plot <- to_plot[which(to_plot$Species == input$sp),
-                         c("tau", "tau_2.5", "tau_97.5", "Roadside_Status", "Forest")]
-      #to_plot <- to_plot[!duplicated(to_plot$Forest), ]
+      to_plot <- edr(species = input$sp,
+                     model = 5,
+                     road = c(TRUE, FALSE),
+                     forest = c(0,1),
+                     quantiles = c(0.025, 0.975))
+      to_plot <- cbind(data.frame(X = 1), to_plot)
+      to_plot$Roadside_Status <- ifelse(to_plot$Road == 1, "On-Road", "Off-road")
       
-      min_y <- min(to_plot$tau_2.5) - 10
-      max_y <- max(to_plot$tau_97.5) + 10
+      min_y <- min(to_plot$EDR_2.5) - 10
+      max_y <- max(to_plot$EDR_97.5) + 10
       
       distance_plot_list <- vector(mode = "list", length = length(forest_level))
       i <- 1
@@ -606,11 +708,11 @@ server <- function(input, output) {
         distance_plot_list[[i]] <- 
           ggplot(data = to_plot[which(to_plot$Forest == fc),]) +
           geom_errorbar(aes(x = Roadside_Status,
-                            ymin = tau_2.5,
-                            ymax = tau_97.5,
+                            ymin = EDR_2.5,
+                            ymax = EDR_97.5,
                             width = 0.2)) +
-          geom_point(aes(x = Roadside_Status, y = tau, size = 2)) +
-          geom_text(aes(x = Roadside_Status, y = tau, label = tau)) +
+          geom_point(aes(x = Roadside_Status, y = EDR_est, size = 2)) +
+          geom_text(aes(x = Roadside_Status, y = EDR_est, label = EDR_est)) +
           ylim(min_y, max_y) +
           theme(legend.position = "none") +
           #ggtitle(paste0("Species: ", input$sp)) +
