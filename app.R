@@ -16,20 +16,21 @@ library(GGally)
 library(ggpubr)
 library(sf)
 library(napops)
+library(magrittr)
 theme_set(theme_pubclean())
 
 laea = st_crs("+proj=laea +lat_0=45 +lon_0=-95")
-
-# Load quantitative summary files
-load("../results/quant-summary/summary_statistics.rda")
-load("../results/quant-summary/dis_species_summary.rda")
-load("../results/quant-summary/rem_species_summary.rda")
+project_coverage <- napops::spatial_coverage() %>%
+  st_transform(crs = laea)
+project_coverage[which(project_coverage$ncounts == 0), "ncounts"] <- NA
 
 # Load spatial summary files
-load("../results/spatial-summary/project_coverage_bcr.rda")
+#load("../results/spatial-summary/project_coverage_bcr.rda")
 load("../results/spatial-summary/dis_coverage_bcr.rda")
 load("../results/spatial-summary/rem_coverage_bcr.rda")
 
+dis_models <- c("(1) Null Model", "(2) Road Model", "(3) Forest Coverage Model",
+                "(4) Road AND Forest Model (Additive)", "(5) Road AND Forest Model (Interaction)")
 forest_level <- c(1.0, 0.0)
 
 # Load files related to removal sampling and set constants
@@ -41,7 +42,7 @@ for (f in phi_files)
 }
 
 # Read in date
-date <- readChar("../results/date.txt", nchars = 30)
+date <- napops_summary()$Date
 
 rem_models <- c("(1) Null Model", "(2) Ordinal Day (OD) Model",
                 "(3) OD + OD^2 Model", "(4) Time-since-sunrise (TSSR) Model",
@@ -52,7 +53,7 @@ rem_models <- c("(1) Null Model", "(2) Ordinal Day (OD) Model",
                 "(9) TSSR + TSSR^2 + OD + OD^2 Model")
 time_values <- c(1, 3, 5, 10)
 
-project_coverage <- bcr_coverage
+#project_coverage <- bcr_coverage
 
 ####### UI Setup ##################################
 
@@ -72,8 +73,8 @@ ui <- dashboardPage(
       menuSubItem("Effective Detection Radius", tabName = "edr"),
       selectInput(inputId = "sp", 
                   label = "Species",
-                  choices = unique(tau_1$Species),
-                  selected = unique(tau_1$Species)[1]),
+                  choices = napops::list_species()$Species,
+                  selected = napops::list_species()$Species[1]),
       h5(paste0("Models Run: ", date))
     )
   ),
@@ -83,22 +84,22 @@ ui <- dashboardPage(
       # Project Overview
       tabItem(tabName = "overview",
               fluidRow(
-                valueBox(value = summary_stats$n_species,
+                valueBox(value = napops_summary()$Species,
                          subtitle = "Species Modelled",
                          icon = icon("crow"),
                          width = 3,
                          color = "olive"),
-                valueBox(value = summary_stats$total_projects,
+                valueBox(value = napops_summary()$Projects,
                          subtitle = "Projects",
                          icon = icon("project-diagram"),
                          width = 3,
                          color = "olive"),
-                valueBox(value = summary_stats$n_samples,
+                valueBox(value = napops_summary()$Samples,
                          subtitle = "Sampling Events",
                          icon = icon("clipboard"),
                          width = 3,
                          color = "olive"),
-                valueBox(value = paste0(format(round(summary_stats$n_observations / 1e6, 2), trim = TRUE), "M +"),
+                valueBox(value = paste0(format(round(napops_summary()$Observations / 1e6, 2), trim = TRUE), "M +"),
                          subtitle = "Observations",
                          icon = icon("binoculars"),
                          width = 3,
@@ -268,10 +269,6 @@ ui <- dashboardPage(
 server <- function(input, output) { 
   
   ################ Project Overview Functions ############################
-  
-  project_coverage[which(project_coverage$ncounts == 0), "ncounts"] <- NA
-  #project_coverage <- st_transform(project_coverage, crs = laea)
-  
   output$project_coverage_map <- renderLeaflet({
     
     pal <- colorNumeric(palette = rev(viridis(10)),
@@ -281,7 +278,7 @@ server <- function(input, output) {
     leaflet(project_coverage) %>%
       addPolygons(stroke = FALSE,
                   fillColor = ~pal(ncounts),
-                  layerId = ~ST_12,
+                  layerId = ~BCR,
                   fillOpacity = 1.0) %>%
       addLegend(position = 'bottomright', pal = pal, 
                 values = project_coverage$ncounts, title = 'Sampling Events')
@@ -297,13 +294,13 @@ server <- function(input, output) {
   
   region_data <- reactive({
     # Fetch data for the clicked tract
-    return(project_coverage[project_coverage$ST_12 == click_region(), ])
+    return(project_coverage[project_coverage$BCR == click_region(), ])
   })
   
   output$proj_region_name <- renderInfoBox({
     infoBox(
       title = "Region",
-      value = project_coverage[project_coverage$ST_12 == click_region(), ]$ST_12,
+      value = project_coverage[project_coverage$BCR == click_region(), ]$BCR,
       color = "green",
       icon = icon("map"),
       fill = TRUE
@@ -313,7 +310,7 @@ server <- function(input, output) {
   output$proj_region_ncounts <- renderInfoBox({
     infoBox(
       title = "Sampling Events",
-      value = project_coverage[project_coverage$ST_12 == click_region(), ]$ncounts,
+      value = project_coverage[project_coverage$BCR == click_region(), ]$ncounts,
       color = "green",
       icon = icon("clipboard"),
       fill = TRUE
@@ -740,38 +737,40 @@ server <- function(input, output) {
   })
   
   output$rem_sampling <- renderValueBox({
-    valueBox(value = nrow(rem_species_summary[[input$sp]]),
+    valueBox(value = nrow(covariates_removal(project = FALSE,
+                                             species = input$sp)),
              subtitle = "Sampling Events",
              icon = icon("clipboard"),
              color = "olive")
   })
   output$rem_bcr <- renderValueBox({
-    valueBox(value = length(which(bcr_rem_coverage[[input$sp]]$ncounts > 0)),
+    valueBox(value = length(which(spatial_coverage(model = "dis",
+                                                   species = input$sp)$ncounts > 0)),
              subtitle = "BCRs",
              icon = icon("map"),
              color = "olive")    
   })
   
   output$rem_coverage_map <- renderLeaflet({
-    
     pal <- colorNumeric(palette = rev(viridis(10)),
                         domain = NULL, 
                         na.color = "#808080")
-    bcr_rem_coverage[[input$sp]][which(bcr_rem_coverage[[input$sp]]$ncounts == 0), "ncounts"] <- NA
+    to_plot <- spatial_coverage(model = "rem", species = input$sp)
+    to_plot[which(to_plot$ncounts == 0), "ncounts"] <- NA
     
     
-    leaflet(bcr_rem_coverage[[input$sp]]) %>%
+    leaflet(to_plot) %>%
       addPolygons(stroke = FALSE,
                   fillColor = ~pal(ncounts),
-                  layerId = ~ST_12,
+                  layerId = ~BCR,
                   fillOpacity = 1.0) %>%
       addLegend(position = 'bottomright', pal = pal, 
-                values = bcr_rem_coverage[[input$sp]]$ncounts, title = 'Sampling Events')
+                values = to_plot$ncounts, title = 'Sampling Events')
     
   })
   
   output$rem_od_hist <- renderPlot({
-    ggplot(data = rem_species_summary[[input$sp]]) +
+    ggplot(data = covariates_removal(project = FALSE, species = input$sp)) +
       geom_histogram(aes(x = (OD))) +
       xlab("Ordinal Day") +
       ylab("Sampling Events") +
@@ -779,7 +778,7 @@ server <- function(input, output) {
   })
   
   output$rem_tssr_hist <- renderPlot({
-    ggplot(data = rem_species_summary[[input$sp]]) +
+    ggplot(data = covariates_removal(project = FALSE, species = input$sp)) +
       geom_histogram(aes(x = (TSSR))) +
       xlab("Time Since Local Sunrise") +
       ylab("Sampling Events") +
@@ -797,10 +796,26 @@ server <- function(input, output) {
     # Empty plot list
     tssr_plot_list <- vector(mode = "list", length = length(time_values))
     
-    i <- 1
+
     
     mod <- which(rem_models == input$p_mod)
-    phi <- eval(parse(text = paste0("phi_", mod)))
+    
+    to_plot <- vector(mode = "list", length = length(time_values))
+    i <- 1
+    for (t in time_values)
+    {
+      to_plot[[i]] <- avail(species = input$sp,
+                        model = mod,
+                        od = c(91:212),
+                        tssr = c(-2,6),
+                        time = t,
+                        quantiles = c(0.025, 0.975))
+      i <- i + 1
+    }
+
+    to_plot <- do.call(rbind, to_plot)
+    
+    i <- 1
     for (tv in time_values)
     {
       tssr_plot_list[[i]] <- 
